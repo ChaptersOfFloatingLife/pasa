@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Optional
 import re
 import json
 import threading
@@ -37,12 +38,22 @@ class PaperAgent:
         search_papers:  int = 10, # per query
         expand_papers:  int = 20, # per layer
         threads_num:    int = 20, # number of threads in parallel at the same time
+        gpt4_api_key:  Optional[str] = None, # API key for GPT-4 agent initialization
     ) -> None:
         self.user_query = user_query
-        self.crawler    = crawler
-        self.selector   = selector
         self.end_date   = end_date
-        self.prompts    = json.load(open(prompts_path))
+        with open(prompts_path, 'r') as f:
+            self.prompts = json.load(f)
+        
+        # Initialize agents
+        if True:
+            from models import GPT4Agent
+            self.crawler = GPT4Agent()
+            self.selector = GPT4Agent()
+        else:
+            self.crawler = crawler
+            self.selector = selector
+            
         self.root       = PaperNode({
             "title": user_query,
             "extra": {
@@ -63,7 +74,8 @@ class PaperAgent:
         self.lock            = threading.Lock()
         self.templates       = {
             "cite_template":   r"~\\cite\{(.*?)\}",
-            "search_template": r"Search\](.*?)\[",
+            # "search_template": r"Search\](.*?)\[",
+            "search_template": r'\*\*"(.*?)"\*\*',
             "expand_template": r"Expand\](.*?)\["
         }
     
@@ -78,6 +90,7 @@ class PaperAgent:
             thread.join()
 
     def search_paper(self, queries):
+        print("Inside search_paper")
         while queries:
             with self.lock:
                 query, self.root.child[query] = queries.pop(), []
@@ -95,7 +108,10 @@ class PaperAgent:
                     self.lock.release()
             
             select_prompts  = [self.prompts["get_selected"].format(title=paper["title"], abstract=paper["abstract"], user_query=self.user_query) for paper in searched_papers]
+            print(f"select_prompts:{select_prompts}")
             scores = self.selector.infer_score(select_prompts)
+            print(f"scores:{scores}")
+
             with self.lock:
                 for score, paper in zip(scores, searched_papers):
                     self.root.extra["crawler_recall_papers"].append(paper["title"])
@@ -115,12 +131,24 @@ class PaperAgent:
                     self.papers_queue.append(paper_node)
 
     def search(self):
+        print("Inside search")
         prompt = self.prompts["generate_query"].format(user_query=self.user_query).strip()
         queries = self.crawler.infer(prompt)
+        print(f"queries:{queries}")
+        # Temporary ignore the search template
         queries = [q.strip() for q in re.findall(self.templates["search_template"], queries, flags=re.DOTALL)][:self.search_queries]
+        print(f"queries:{queries}")
+        # manual_test = [
+        #     "When Less is More: Investigating Data Pruning for Pretraining LLMs at   Scale",
+        #     "How to Train Data-Efficient LLMs",
+        #     "Deduplicating Training Data Makes Language Models Better",
+        # ]
+        # queries += manual_test
+
         PaperAgent.do_parallel(self.search_paper, (queries,), len(queries))
 
     def get_paper_content(self, new_expand, crawl_prompts, have_full_paper):
+        print("Inside get_paper_content")
         while new_expand:
             with self.lock:
                 if new_expand:
@@ -171,7 +199,13 @@ class PaperAgent:
                     crawl_result = crawl_results.pop(0)
                 else:
                     break
+            # print(f"crawl_result:{crawl_result}")
+            # raise Exception("stop")
             crawl_result = re.findall(self.templates["expand_template"], crawl_result, flags=re.DOTALL)
+            if len(crawl_result) > 0:
+                print(f"crawl_result:{crawl_result}")
+                raise Exception("stop")
+
             section_sources_ori = []
             for section in crawl_result:
                 section = section.strip()

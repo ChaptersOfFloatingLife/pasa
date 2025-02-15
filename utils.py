@@ -30,9 +30,10 @@ import requests
 from datetime   import datetime
 warnings.simplefilter("always")
 
-GOOGLE_KEY   = 'your google keys'
+GOOGLE_KEY   = 'google_key'
 arxiv_client = arxiv.Client(delay_seconds = 0.05)
-id2paper     = json.load(open("data/paper_database/id2paper.json"))
+with open("data/paper_database/id2paper.json", "r") as f:
+    id2paper = json.load(f)
 paper_db     = zipfile.ZipFile("data/paper_database/cs_paper_2nd.zip", "r")
 
 def google_search_arxiv_id(query, num=10, end_date=None):

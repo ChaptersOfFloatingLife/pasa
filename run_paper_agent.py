@@ -22,7 +22,7 @@ Please note that:
 import os
 import json
 import argparse
-from models      import Agent
+from models      import Agent, GPT4Agent
 from paper_agent import PaperAgent
 from datetime    import datetime, timedelta
 
@@ -41,27 +41,33 @@ args = parser.parse_args()
 crawler = Agent(args.crawler_path)
 selector = Agent(args.selector_path)
 
-with open(args.input_file) as f:
-    for idx, line in enumerate(f.readlines()):
-        data = json.loads(line)
-        end_date = data['source_meta']['published_time']
-        end_date = datetime.strptime(end_date, "%Y%m%d") - timedelta(days=7)
-        end_date = end_date.strftime("%Y%m%d")
-        paper_agent = PaperAgent(
-            user_query     = data['question'], 
-            crawler        = crawler,
-            selector       = selector,
-            end_date       = end_date,
-            expand_layers  = args.expand_layers,
-            search_queries = args.expand_papers,
-            search_papers  = args.search_papers,
-            expand_papers  = args.expand_papers,
-            threads_num    = args.threads_num
-        )
-        if "answer" in data:
-            paper_agent.root.extra["answer"] = data["answer"]
-        
-        paper_agent.run()
-        
-        if args.output_folder != "":
-            json.dump(paper_agent.root.todic(), open(os.path.join(args.output_folder, f"{idx}.json"), "w"), indent=2)
+def main(args):
+    # Initialize GPT4Agent without api_key argument
+    agent = GPT4Agent()
+    with open(args.input_file) as f:
+        for idx, line in enumerate(f.readlines()):
+            data = json.loads(line)
+            end_date = data['source_meta']['published_time']
+            end_date = datetime.strptime(end_date, "%Y%m%d") - timedelta(days=7)
+            end_date = end_date.strftime("%Y%m%d")
+            paper_agent = PaperAgent(
+                user_query     = data['question'], 
+                crawler        = crawler,
+                selector       = selector,
+                end_date       = end_date,
+                expand_layers  = args.expand_layers,
+                search_queries = args.expand_papers,
+                search_papers  = args.search_papers,
+                expand_papers  = args.expand_papers,
+                threads_num    = args.threads_num
+            )
+            if "answer" in data:
+                paper_agent.root.extra["answer"] = data["answer"]
+            
+            paper_agent.run()
+            
+            if args.output_folder != "":
+                json.dump(paper_agent.root.todic(), open(os.path.join(args.output_folder, f"{idx}.json"), "w"), indent=2)
+
+if __name__ == "__main__":
+    main(args)

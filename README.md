@@ -258,3 +258,11 @@ Please cite us as:
       primaryClass={cs.IR}
 }
 ```
+
+----
+
+Test gtp4o version:
+
+```
+python evaluate_gpt4o.py --paper_limit 1 --test_data data/RealScholarQuery/test.jsonl
+```
